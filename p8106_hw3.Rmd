@@ -14,6 +14,7 @@ library(MASS)
 library(pROC)
 library(vip)
 library(pdp)
+library(car)
 
 auto <- read.csv("auto.csv")
 
@@ -27,15 +28,10 @@ set.seed(1)
 data_split <- initial_split(auto, prop = 0.7, strata = mpg_cat)
 training_data <- training(data_split)
 testing_data  <- testing(data_split)
-
-training_data$mpg_cat <- factor(training_data$mpg_cat,
-                                levels = c("low", "high"))
-
-testing_data$mpg_cat <- factor(testing_data$mpg_cat,
-                               levels = c("low", "high"))
 ```
 
 ```{r}
+set.seed(1)
 # cross validation
 ctrl <- trainControl(
   method = "cv",
@@ -47,41 +43,122 @@ ctrl <- trainControl(
 
 # Problem a
 ```{r}
+set.seed(1)
 glm.fit <- glm(mpg_cat ~ .,
                data = training_data,
                family = binomial(link = "logit"))
 summary(glm.fit)
+vif(glm.fit)
 ```
+Predictors with a large p-value such as cylinders, displacement, horsepower, acceleration might be redundant. They are not statistically significant after controlling for the others, since they have a p-value greater than 0.05, possibly due to multicollinearity or overlapping information.
+
 ```{r}
-# predict probabilities for test data
-test.pred.prob <- predict(glm.fit, newdata = testing_data,
-                          type = "response")
-
-# convert probabilities to binary predictions using a 0.5 cutoff
-test.pred <- rep(levels(training_data$mpg_cat)[1], length(test.pred.prob))
-test.pred[test.pred.prob > 0.5] <- levels(training_data$mpg_cat)[2]
-
-# generate confusion matrix
-confusionMatrix(data = as.factor(test.pred),
-                reference = testing_data$mpg_cat,
-                positive = levels(training_data$mpg_cat)[2])
+# train logistic regression model with CV
+set.seed(1)
+model.glm <- train(x = training_data[, names(training_data) != "mpg_cat"],
+y = training_data$mpg_cat,
+method = "glm",
+metric = "ROC",
+trControl = ctrl)
 ```
-Predictors with a large p-value such as cylinders, displacement, horsepower, acceleration might be redundant. They not statistically significant after controlling for the others, since they have a p-value greater than 0.05, possibly due to multicollinearity or overlapping information.
 
 # Problem b
 ```{r}
+# train MARS
 set.seed(1)
-mars_fit <- train(
+model.mars <- train(
   x = training_data[, names(training_data) != "mpg_cat"],
   y = training_data$mpg_cat,
   method = "earth",
   tuneGrid = expand.grid(
-    degree = 1:4,
+    degree = 1:2,
     nprune = 2:20
   ),
   metric = "ROC",
   trControl = ctrl
 )
-plot(mars_fit)
+plot(model.mars)
 ```
+```{r}
+set.seed(1)
+# compare models using resampling
+res <- resamples(list(GLM = model.glm,
+                      MARS = model.mars))
+summary(res)
+# boxplot of ROC performance for the 2 models
+bwplot(res, metric = "ROC")
+```
+
+# Problem c
+```{r}
+set.seed(1)
+lda.fit <- lda(mpg_cat ~ ., data = training_data)
+# plot discriminant
+plot(lda.fit)
+# show coefficients
+lda.fit$scaling
+```
+```{r}
+# Cross validation LDA
+set.seed(1)
+model.lda <- train(mpg_cat ~ ., 
+                   data = training_data, 
+                   method = "lda", 
+                   metric = "ROC", 
+                   trControl = ctrl)
+```
+
+# Problem d
+```{r}
+set.seed(1)
+# compare models using resampling
+res <- resamples(list(GLM = model.glm,
+                      LDA = model.lda,
+                      MARS = model.mars))
+summary(res)
+# boxplot of ROC performance for the 3 models
+bwplot(res, metric = "ROC")
+```
+
+```{r}
+set.seed(1)
+# predictions on test data for each model
+glm.pred  <- predict(model.glm,  newdata = testing_data, type = "prob")[,2]
+mars.pred <- predict(model.mars, newdata = testing_data, type = "prob")[,2]
+lda.pred  <- predict(model.lda,  newdata = testing_data, type = "prob")[,2]
+
+
+roc.glm  <- roc(testing_data$mpg_cat, glm.pred)
+roc.mars <- roc(testing_data$mpg_cat, mars.pred)
+roc.lda  <- roc(testing_data$mpg_cat, lda.pred)
+
+auc <- c(roc.glm$auc[1], roc.lda$auc[1], roc.mars$auc[1])
+```
+
+```{r}
+set.seed(1)
+# plot ROC curves for all models
+modelNames <- c("glm","lda","mars")
+ggroc(list(roc.glm, roc.lda, roc.mars), legacy.axes = TRUE) +
+scale_color_discrete(labels = paste0(modelNames, " (", round(auc,3),")"),
+name = "Models (AUC)") +
+geom_abline(intercept = 0, slope = 1, color = "grey")
+```
+
+# Problem e
+```{r}
+final.prob <- mars.pred
+
+final.pred <- rep(levels(training_data$mpg_cat)[1], length(final.prob))
+final.pred[final.prob > 0.5] <- levels(training_data$mpg_cat)[2]
+
+final.pred <- as.factor(final.pred)
+
+confusionMatrix(
+  data = final.pred,
+  reference = testing_data$mpg_cat,
+  positive = levels(training_data$mpg_cat)[2]
+)
+```
+
 

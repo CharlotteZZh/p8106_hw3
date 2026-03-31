@@ -1,0 +1,87 @@
+---
+title: "p8106_hw3"
+author: "Charlotte Zhang"
+date: "2026-03-30"
+output: pdf_document
+---
+```{r}
+# Import data
+library(tidyverse)
+library(tidymodels)
+library(caret)
+library(earth)      
+library(MASS)       
+library(pROC)
+library(vip)
+library(pdp)
+
+auto <- read.csv("auto.csv")
+
+auto$mpg_cat <- as.factor(auto$mpg_cat)
+auto$origin <- as.factor(auto$origin)
+```
+
+```{r}
+# train test split
+set.seed(1)
+data_split <- initial_split(auto, prop = 0.7, strata = mpg_cat)
+training_data <- training(data_split)
+testing_data  <- testing(data_split)
+
+training_data$mpg_cat <- factor(training_data$mpg_cat,
+                                levels = c("low", "high"))
+
+testing_data$mpg_cat <- factor(testing_data$mpg_cat,
+                               levels = c("low", "high"))
+```
+
+```{r}
+# cross validation
+ctrl <- trainControl(
+  method = "cv",
+  number = 10,
+  summaryFunction = twoClassSummary,
+  classProbs = TRUE
+)
+```
+
+# Problem a
+```{r}
+glm.fit <- glm(mpg_cat ~ .,
+               data = training_data,
+               family = binomial(link = "logit"))
+summary(glm.fit)
+```
+```{r}
+# predict probabilities for test data
+test.pred.prob <- predict(glm.fit, newdata = testing_data,
+                          type = "response")
+
+# convert probabilities to binary predictions using a 0.5 cutoff
+test.pred <- rep(levels(training_data$mpg_cat)[1], length(test.pred.prob))
+test.pred[test.pred.prob > 0.5] <- levels(training_data$mpg_cat)[2]
+
+# generate confusion matrix
+confusionMatrix(data = as.factor(test.pred),
+                reference = testing_data$mpg_cat,
+                positive = levels(training_data$mpg_cat)[2])
+```
+Predictors with a large p-value such as cylinders, displacement, horsepower, acceleration might be redundant. They not statistically significant after controlling for the others, since they have a p-value greater than 0.05, possibly due to multicollinearity or overlapping information.
+
+# Problem b
+```{r}
+set.seed(1)
+mars_fit <- train(
+  x = training_data[, names(training_data) != "mpg_cat"],
+  y = training_data$mpg_cat,
+  method = "earth",
+  tuneGrid = expand.grid(
+    degree = 1:4,
+    nprune = 2:20
+  ),
+  metric = "ROC",
+  trControl = ctrl
+)
+plot(mars_fit)
+```
+

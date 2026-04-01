@@ -151,21 +151,25 @@ scale_color_discrete(labels = paste0(modelNames, " (", round(auc,3),")"),
 name = "Models (AUC)") +
 geom_abline(intercept = 0, slope = 1, color = "grey")
 ```
+```{r}
+ggroc(roc.glm, legacy.axes = TRUE, color = "red") +
+  geom_abline(intercept = 0, slope = 1, color = "grey") +
+  labs(title = "ROC Curve for Logistic Regression") +
+  annotate("text", x = 0.75, y = 0.1,
+           label = paste0("AUC = ", round(roc.glm$auc, 3)))
+```
+
 While MARS performed better during cross-validation on the training data, logistic regression performed better on the test set. Since it has a test AUC of 0.983 which is higher than 0.978. Therefore, MARS did not improve prediction performance compared to logistic regression, and I would select logistic regression as the final model b/c it performs better on unseen data. 
 
 # Problem e
 ```{r}
-# pick the best threshold
-best_thresh <- coords(roc.glm, "best", ret = "threshold")
-best_thresh
-
 final.pred <- rep("high", length(glm.pred))
-final.pred[glm.pred > best_thresh] <- "low"
+final.pred[glm.pred > 0.5] <- "low"
 final.pred <- factor(final.pred, levels = c("high", "low"))
 
 confusionMatrix(data = final.pred,
                 reference = testing_data$mpg_cat,
                 positive = "low")
 ```
-
+I used a threshold of 0.5 which is a pretty standard cutoff for a binary classification, and it makes a good prediction because only 6 out of 118 observations were wrongly classified. Accuracy, sensitivity (TP) and specificity (TN) are all 0.9492, indicating a balanced and effective performance in identifying low and high mpg cars. 
 

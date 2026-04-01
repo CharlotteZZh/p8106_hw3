@@ -51,7 +51,7 @@ glm.fit <- glm(mpg_cat ~ .,
 summary(glm.fit)
 vif(glm.fit)
 ```
-Predictors with a large p-value such as cylinders, displacement, origin3, horsepower, and acceleration might be redundant. They are not statistically significant after controlling for the others, since they have a p-value greater than 0.05. This is consistent with the GVIF, where displacement (3.27), weight (2.30) and cylinders (2.26) have the largest adjusted GVIF values, , possibly due to multicollinearity or overlapping information. 
+Predictors with a large p-value such as cylinders, displacement, origin3, horsepower, and acceleration might be redundant. They are not statistically significant after controlling for the others, since they have a p-value greater than 0.05. This is consistent with the GVIF, where displacement (3.27), weight (2.30) and cylinders (2.26) have the largest adjusted GVIF values, possibly due to multicollinearity or overlapping information. 
 
 ```{r}
 # train logistic regression model with CV
@@ -91,7 +91,7 @@ summary(res)
 # boxplot of ROC performance for the 2 models
 bwplot(res, metric = "ROC")
 ```
-Based on the boxplots and the resample summary, MARS model performs better than logistic regression, and it appears to have more stable performance across resamples. However, this comparison is made solely on cross-validated ROC values from the training data. The test set ROC and AUC will be computed and plotted in part (d).
+Based on the boxplots and the resample summary, MARS model (0.98 mean ROC) performs better than logistic regression (0.96 mean ROC) and it appears to have more stable performance across resamples. This comparison is made on cross-validated ROC values from the training data, and the test set ROC and AUC will be computed and plotted in part (d).
 
 # Problem c
 ```{r}
